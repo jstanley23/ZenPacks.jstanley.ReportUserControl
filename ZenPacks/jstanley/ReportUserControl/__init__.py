@@ -1,4 +1,5 @@
 import os
+import logging
 from ZenPacks.zenoss.ZenPackLib import zenpacklib
 
 
@@ -11,7 +12,9 @@ from Products.ZenUtils.Utils import monkeypatch
 from Products.ZenUtils.zencatalog import reindex_catalog
 from Products.Zuul.routers.report import ReportRouter
 
+
 ZEN_ROLE = 'ZenReportUser'
+LOG = logging.getLogger('Zen.ReportUserControl')
 
 
 class ZenPack(schema.ZenPack):
@@ -24,10 +27,23 @@ class ZenPack(schema.ZenPack):
             globalCat = app.getPhysicalRoot().zport.global_catalog
             reindex_catalog(globalCat, permissionsOnly=True, printProgress=True, commit=False)
 
+        LOG.info('Disabling Reports for ZenUser')
+        app.zport.dmd.Reports.manage_permission(
+            'View',
+            ['ZenManager', 'Manager', 'ZenReportUser'], acquire=False
+        )
+
+
     def remove(self, app, leaveObjects=False):
         super(ZenPack, self).remove(app, leaveObjects=leaveObjects)
         if not leaveObjects:
             self.removeRole(app.zport, ZEN_ROLE)
+            LOG.info('Enabling Reports for ZenUser')
+            app.zport.dmd.Reports.manage_permission(
+                'View',
+                ['ZenManager', 'Manager', 'ZenUser'], acquire=False
+            )
+
 
     def installRole(self, zport, role):
         # Add the role
@@ -45,10 +61,10 @@ class ZenPack(schema.ZenPack):
             zport.acl_users.roleManager.removeRole(role)
 
 
-@monkeypatch('Products.Zuul.routers.report.ReportRouter')
-def asyncGetTree(self, id=None):
-    if Zuul.checkPermission('ZenReportUser', self.context):
-        return super(ReportRouter, self).asyncGetTree(id, additionalKeys=self.keys)
-    else:
-        return []
+#@monkeypatch('Products.Zuul.routers.report.ReportRouter')
+#def asyncGetTree(self, id=None):
+#    if Zuul.checkPermission('ZenReportUser', self.context):
+#        return super(ReportRouter, self).asyncGetTree(id, additionalKeys=self.keys)
+#    else:
+#        return []
 
